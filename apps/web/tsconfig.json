@@ -17,7 +17,6 @@
         "name": "next"
       }
     ],
-    "baseUrl": ".",
     "incremental": true
   },
   "include": [

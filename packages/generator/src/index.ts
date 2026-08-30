@@ -78,6 +78,7 @@ export const BankEntrySchema = z.object({
   amountMinor: moneySchema,
   currency: currencySchema,
   postedAt: z.string(),
+  narration: z.string(),
   direction: z.literal('credit'),
 });
 
@@ -143,6 +144,8 @@ export type ScenarioCsvViews = {
   bankStatement: string;
 };
 
+export type ParsedCsvRow = Record<string, string>;
+
 class SeededRandom {
   private state: number;
 
@@ -194,11 +197,13 @@ function applyReferenceTruncation(records: OperationalRecords): void {
 
 function applyReferencePrefixChange(records: OperationalRecords): void {
   records.bankEntries[0].entryRef = `CREDIT-${records.bankEntries[0].entryRef}`;
+  records.bankEntries[0].narration = `Incoming credit; reference ${records.bankEntries[0].entryRef}`;
 }
 
 function applyAmbiguousReference(records: OperationalRecords): void {
   if (records.pspTransactions.length > 1) {
     records.pspTransactions[1].transactionRef = records.pspTransactions[0].transactionRef;
+    records.bankEntries[0].narration = 'Incoming credit; reference appears truncated and matches multiple payments';
   }
 }
 
@@ -206,6 +211,7 @@ function applyConflictingCandidateSet(records: OperationalRecords): void {
   if (records.bankEntries.length > 1) {
     records.bankEntries[1].entryRef = records.bankEntries[0].entryRef;
     records.bankEntries[1].amountMinor = records.bankEntries[0].amountMinor + 1;
+    records.bankEntries[1].narration = 'Incoming credit; duplicate reference with conflicting amount';
   }
 }
 
@@ -224,6 +230,7 @@ function applyUnattributedBankEntry(records: OperationalRecords): void {
     amountMinor: 7777,
     currency: 'INR',
     postedAt: isoDate(28),
+    narration: 'Incoming credit with no matching settlement reference',
     direction: 'credit',
   });
 }
@@ -310,20 +317,57 @@ function csvDocument(headers: string[], rows: Array<Array<string | number | bool
   return [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n') + '\n';
 }
 
+export function parseCsvDocument(document: string): ParsedCsvRow[] {
+  const lines = document.trimEnd().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const parseLine = (line: string): string[] => {
+    const cells: string[] = [];
+    let cell = '';
+    let quoted = false;
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+      if (character === '"') {
+        if (quoted && line[index + 1] === '"') {
+          cell += '"';
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (character === ',' && !quoted) {
+        cells.push(cell);
+        cell = '';
+      } else {
+        cell += character;
+      }
+    }
+    cells.push(cell);
+    return cells;
+  };
+  const headers = parseLine(lines[0]);
+  return lines.slice(1).map((line) => {
+    const values = parseLine(line);
+    return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
+  });
+}
+
 export function serializeScenarioToCsvViews(scenario: GeneratedScenario): ScenarioCsvViews {
   const { config, operationalRecords } = scenario;
+  const scenarioId = scenario.hiddenTruth.scenarioId;
   const merchantRows = new SeededRandom(config.seed ^ 0x13579bdf).shuffle(
     operationalRecords.merchantTransactions,
   );
   const settlementRows = new SeededRandom(config.seed ^ 0x2468ace0).shuffle(
     operationalRecords.settlementComponents.flatMap((component) => {
       const settlement = operationalRecords.settlements.find((item) => item.id === component.settlementId);
+      const pspTransaction = operationalRecords.pspTransactions.find(
+        (item) => item.id === `psp-${component.id.slice('component-'.length)}`,
+      );
       return settlement
         ? [[
-            config.seed, config.profile, `${config.seed}-${config.size}-${config.profile}`,
+            config.seed, config.profile, scenarioId,
             settlement.id, settlement.sourceRecordId, settlement.externalSettlementId,
             settlement.statedAmountMinor, settlement.currency, settlement.settlementDate,
-            component.id, component.componentType, component.amountMinor,
+            pspTransaction?.id ?? '', pspTransaction?.transactionRef ?? '', component.id, component.componentType, component.amountMinor,
             component.financialEffectMinor, settlement.componentSetComplete,
           ]]
         : [];
@@ -331,9 +375,10 @@ export function serializeScenarioToCsvViews(scenario: GeneratedScenario): Scenar
   );
   const bankRows = new SeededRandom(config.seed ^ 0xabcdef01).shuffle(
     operationalRecords.bankEntries.map((entry) => [
-      `${config.seed}-${config.size}-${config.profile}`, config.profile, entry.id,
+      scenarioId, config.profile, entry.id,
       entry.sourceRecordId, entry.entryRef, entry.amountMinor, entry.currency,
       entry.postedAt, entry.direction,
+      entry.narration,
     ]),
   );
 
@@ -341,17 +386,17 @@ export function serializeScenarioToCsvViews(scenario: GeneratedScenario): Scenar
     merchantTransactions: csvDocument(
       ['scenario_id', 'profile', 'merchant_id', 'source_record_id', 'external_ref', 'amount_minor', 'currency', 'transaction_date', 'status'],
       merchantRows.map((record) => [
-        `${config.seed}-${config.size}-${config.profile}`, config.profile, record.id,
+        scenarioId, config.profile, record.id,
         record.sourceRecordId, record.externalRef, record.amountMinor, record.currency,
         record.transactionDate, record.status,
       ]),
     ),
     settlementRecords: csvDocument(
-      ['seed', 'profile', 'scenario_id', 'settlement_id', 'settlement_source_record_id', 'external_settlement_id', 'stated_amount_minor', 'currency', 'settlement_date', 'component_id', 'component_type', 'component_amount_minor', 'financial_effect_minor', 'component_set_complete'],
+      ['seed', 'profile', 'scenario_id', 'settlement_id', 'settlement_source_record_id', 'external_settlement_id', 'stated_amount_minor', 'currency', 'settlement_date', 'psp_transaction_id', 'transaction_ref', 'component_id', 'component_type', 'component_amount_minor', 'financial_effect_minor', 'component_set_complete'],
       settlementRows,
     ),
     bankStatement: csvDocument(
-      ['scenario_id', 'profile', 'bank_entry_id', 'source_record_id', 'entry_ref', 'amount_minor', 'currency', 'posted_at', 'direction'],
+      ['scenario_id', 'profile', 'bank_entry_id', 'source_record_id', 'entry_ref', 'amount_minor', 'currency', 'posted_at', 'direction', 'narration'],
       bankRows,
     ),
   };
@@ -418,6 +463,7 @@ export function generateScenario(options: GenerateScenarioOptions): GeneratedSce
       amountMinor: statedAmountMinor,
       currency: 'INR',
       postedAt: isoDate(12 + settlementIndex),
+      narration: `Settlement credit ${settlementId} via bank trace UTR-${options.seed}-${settlementIndex + 1}`,
       direction: 'credit',
     });
     expectedAllocations.push({ settlementId, bankEntryId: bankId, amountMinor: statedAmountMinor, currency: 'INR' });
@@ -449,6 +495,7 @@ export function generateScenario(options: GenerateScenarioOptions): GeneratedSce
     expectedVariance: { amountMinor: varianceFor(mutations), currency: 'INR' },
     expectedEvidenceSourceLinks: [
       ...merchantTransactions.map((record) => ({ entityId: record.id, sourceType: 'merchant' as const, sourceRecordId: record.sourceRecordId })),
+      ...pspTransactions.map((record) => ({ entityId: record.id, sourceType: 'psp' as const, sourceRecordId: record.sourceRecordId })),
       ...settlements.map((record) => ({ entityId: record.id, sourceType: 'psp' as const, sourceRecordId: record.sourceRecordId })),
       ...bankEntries.map((record) => ({ entityId: record.id, sourceType: 'bank' as const, sourceRecordId: record.sourceRecordId })),
     ],

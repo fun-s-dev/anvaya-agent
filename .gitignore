@@ -2,6 +2,9 @@ node_modules
 .next
 dist
 coverage
+data/evaluation/
+data/demo/hidden-ground-truth.json
+*.tsbuildinfo
 .env
 .env.local
 .env.*.local

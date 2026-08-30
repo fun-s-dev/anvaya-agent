@@ -11,6 +11,7 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "ignoreDeprecations": "5.0",
     "noEmit": true,
     "baseUrl": ".",
     "paths": {

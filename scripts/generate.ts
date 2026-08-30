@@ -31,8 +31,8 @@ async function main(): Promise<void> {
   const scenario = generateScenario({ seed, size, profile, mutations });
   const csvViews = serializeScenarioToCsvViews(scenario);
   await mkdir('data/demo', { recursive: true });
-  await writeFile('data/demo/operational-records.json', `${JSON.stringify(scenario.operationalRecords, null, 2)}\n`, 'utf8');
-  await writeFile('data/demo/hidden-ground-truth.json', `${JSON.stringify(scenario.hiddenTruth, null, 2)}\n`, 'utf8');
+  await mkdir('data/evaluation', { recursive: true });
+  await writeFile('data/evaluation/hidden-ground-truth.json', `${JSON.stringify(scenario.hiddenTruth, null, 2)}\n`, 'utf8');
   await writeFile('data/demo/merchant_transactions.csv', csvViews.merchantTransactions, 'utf8');
   await writeFile('data/demo/settlement_records.csv', csvViews.settlementRecords, 'utf8');
   await writeFile('data/demo/bank_statement.csv', csvViews.bankStatement, 'utf8');

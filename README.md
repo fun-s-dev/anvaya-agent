@@ -79,7 +79,7 @@ npx prisma studio --schema prisma/schema.prisma
 - Use synthetic data for public demos and test fixtures.
 ## Synthetic financial worlds
 
-Generate deterministic demo records and a separate hidden ground-truth file:
+Generate deterministic demo records and separate evaluation-only ground truth:
 
 ```sh
 npm run generate -- --seed 42 --size 100
@@ -90,7 +90,16 @@ npm run generate -- --seed 42 --size 100 --mutations wrong_amount,ambiguous_refe
 The same scenario is written as three independently shuffled source views:
 
 - `data/demo/merchant_transactions.csv`: `scenario_id, profile, merchant_id, source_record_id, external_ref, amount_minor, currency, transaction_date, status`
-- `data/demo/settlement_records.csv`: `seed, profile, scenario_id, settlement_id, settlement_source_record_id, external_settlement_id, stated_amount_minor, currency, settlement_date, component_id, component_type, component_amount_minor, financial_effect_minor, component_set_complete`
-- `data/demo/bank_statement.csv`: `scenario_id, profile, bank_entry_id, source_record_id, entry_ref, amount_minor, currency, posted_at, direction`
+- `data/demo/settlement_records.csv`: `seed, profile, scenario_id, settlement_id, settlement_source_record_id, external_settlement_id, stated_amount_minor, currency, settlement_date, psp_transaction_id, transaction_ref, component_id, component_type, component_amount_minor, financial_effect_minor, component_set_complete`
+- `data/demo/bank_statement.csv`: `scenario_id, profile, bank_entry_id, source_record_id, entry_ref, amount_minor, currency, posted_at, direction, narration`
 
-Operational records are also written to `data/demo/operational-records.json`; hidden truth is written separately to `data/demo/hidden-ground-truth.json` and is not imported by reconciliation code.
+Hidden truth is written to ignored `data/evaluation/hidden-ground-truth.json`; it is never a public demo input and is not imported by reconciliation code.
+
+Windows PowerShell example:
+
+```powershell
+npm run generate -- --seed 42 --size 100 --profile adversarial
+Get-ChildItem data\demo\*.csv
+```
+
+Example output: 100 merchant rows, 90 settlement components after the adversarial missing-settlement mutation, and 10 bank rows.
