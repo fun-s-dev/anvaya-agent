@@ -1,6 +1,11 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 
-import { generateScenario, scenarioMutationCatalog, type ScenarioProfile } from '@anvaya/generator';
+import {
+  generateScenario,
+  scenarioMutationCatalog,
+  serializeScenarioToCsvViews,
+  type ScenarioProfile,
+} from '@anvaya/generator';
 
 function argument(name: string, fallback: string, positionalIndex: number): string {
   const index = process.argv.indexOf(`--${name}`);
@@ -24,9 +29,13 @@ async function main(): Promise<void> {
       })
     : undefined;
   const scenario = generateScenario({ seed, size, profile, mutations });
+  const csvViews = serializeScenarioToCsvViews(scenario);
   await mkdir('data/demo', { recursive: true });
   await writeFile('data/demo/operational-records.json', `${JSON.stringify(scenario.operationalRecords, null, 2)}\n`, 'utf8');
   await writeFile('data/demo/hidden-ground-truth.json', `${JSON.stringify(scenario.hiddenTruth, null, 2)}\n`, 'utf8');
+  await writeFile('data/demo/merchant_transactions.csv', csvViews.merchantTransactions, 'utf8');
+  await writeFile('data/demo/settlement_records.csv', csvViews.settlementRecords, 'utf8');
+  await writeFile('data/demo/bank_statement.csv', csvViews.bankStatement, 'utf8');
   console.log(`Generated ${size} merchant records with seed ${seed} (${profile}).`);
 }
 

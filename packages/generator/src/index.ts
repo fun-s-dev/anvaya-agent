@@ -137,6 +137,12 @@ export type GenerateScenarioOptions = {
   mutations?: ScenarioMutation[];
 };
 
+export type ScenarioCsvViews = {
+  merchantTransactions: string;
+  settlementRecords: string;
+  bankStatement: string;
+};
+
 class SeededRandom {
   private state: number;
 
@@ -147,6 +153,15 @@ class SeededRandom {
   public nextInt(maxExclusive: number): number {
     this.state = (1664525 * this.state + 1013904223) >>> 0;
     return this.state % maxExclusive;
+  }
+
+  public shuffle<T>(items: readonly T[]): T[] {
+    const result = [...items];
+    for (let index = result.length - 1; index > 0; index -= 1) {
+      const swapIndex = this.nextInt(index + 1);
+      [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+    }
+    return result;
   }
 }
 
@@ -284,6 +299,62 @@ export function applyScenarioMutations(
   mutations: readonly ScenarioMutation[],
 ): void {
   for (const mutation of mutations) mutationHandlers[mutation](records, truth);
+}
+
+function csvCell(value: string | number | boolean): string {
+  const text = String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function csvDocument(headers: string[], rows: Array<Array<string | number | boolean>>): string {
+  return [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n') + '\n';
+}
+
+export function serializeScenarioToCsvViews(scenario: GeneratedScenario): ScenarioCsvViews {
+  const { config, operationalRecords } = scenario;
+  const merchantRows = new SeededRandom(config.seed ^ 0x13579bdf).shuffle(
+    operationalRecords.merchantTransactions,
+  );
+  const settlementRows = new SeededRandom(config.seed ^ 0x2468ace0).shuffle(
+    operationalRecords.settlementComponents.flatMap((component) => {
+      const settlement = operationalRecords.settlements.find((item) => item.id === component.settlementId);
+      return settlement
+        ? [[
+            config.seed, config.profile, `${config.seed}-${config.size}-${config.profile}`,
+            settlement.id, settlement.sourceRecordId, settlement.externalSettlementId,
+            settlement.statedAmountMinor, settlement.currency, settlement.settlementDate,
+            component.id, component.componentType, component.amountMinor,
+            component.financialEffectMinor, settlement.componentSetComplete,
+          ]]
+        : [];
+    }),
+  );
+  const bankRows = new SeededRandom(config.seed ^ 0xabcdef01).shuffle(
+    operationalRecords.bankEntries.map((entry) => [
+      `${config.seed}-${config.size}-${config.profile}`, config.profile, entry.id,
+      entry.sourceRecordId, entry.entryRef, entry.amountMinor, entry.currency,
+      entry.postedAt, entry.direction,
+    ]),
+  );
+
+  return {
+    merchantTransactions: csvDocument(
+      ['scenario_id', 'profile', 'merchant_id', 'source_record_id', 'external_ref', 'amount_minor', 'currency', 'transaction_date', 'status'],
+      merchantRows.map((record) => [
+        `${config.seed}-${config.size}-${config.profile}`, config.profile, record.id,
+        record.sourceRecordId, record.externalRef, record.amountMinor, record.currency,
+        record.transactionDate, record.status,
+      ]),
+    ),
+    settlementRecords: csvDocument(
+      ['seed', 'profile', 'scenario_id', 'settlement_id', 'settlement_source_record_id', 'external_settlement_id', 'stated_amount_minor', 'currency', 'settlement_date', 'component_id', 'component_type', 'component_amount_minor', 'financial_effect_minor', 'component_set_complete'],
+      settlementRows,
+    ),
+    bankStatement: csvDocument(
+      ['scenario_id', 'profile', 'bank_entry_id', 'source_record_id', 'entry_ref', 'amount_minor', 'currency', 'posted_at', 'direction'],
+      bankRows,
+    ),
+  };
 }
 
 export function generateScenario(options: GenerateScenarioOptions): GeneratedScenario {

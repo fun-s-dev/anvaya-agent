@@ -1,0 +1,11 @@
+scenario_id,profile,bank_entry_id,source_record_id,entry_ref,amount_minor,currency,posted_at,direction
+42-100-adversarial,adversarial,bank-0002,bank-0002,UTR-42-2,529413,INR,2026-08-13T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0006,bank-0006,UTR-42-6,516933,INR,2026-08-17T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0004,bank-0004,UTR-42-4,614797,INR,2026-08-15T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0008,bank-0008,UTR-42-8,459501,INR,2026-08-19T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0007,bank-0007,UTR-42-7,428481,INR,2026-08-18T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0010,bank-0010,UTR-42-10,393701,INR,2026-08-21T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0009,bank-0009,UTR-42-9,543977,INR,2026-08-20T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0001,bank-0001,UTR-42-1,502825,INR,2026-08-12T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0005,bank-0005,UTR-42-5,478457,INR,2026-08-16T10:00:00.000Z,credit
+42-100-adversarial,adversarial,bank-0003,bank-0003,UTR-42-3,544561,INR,2026-08-14T10:00:00.000Z,credit

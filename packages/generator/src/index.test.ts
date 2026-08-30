@@ -1,8 +1,11 @@
+import { readFile } from 'node:fs/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import {
   generateScenario,
   scenarioMutationCatalog,
+  serializeScenarioToCsvViews,
 } from './index.js';
 
 describe('synthetic financial world generator', () => {
@@ -37,5 +40,26 @@ describe('synthetic financial world generator', () => {
 
   it('exposes every required mutation', () => {
     expect(scenarioMutationCatalog).toHaveLength(11);
+  });
+
+  it('serializes three shuffled CSV views from the same scenario and hidden truth', async () => {
+    const scenario = generateScenario({ seed: 42, size: 100, profile: 'adversarial' });
+    const views = serializeScenarioToCsvViews(scenario);
+    const [merchantCsv, settlementCsv, bankCsv] = await Promise.all([
+      readFile('data/demo/merchant_transactions.csv', 'utf8'),
+      readFile('data/demo/settlement_records.csv', 'utf8'),
+      readFile('data/demo/bank_statement.csv', 'utf8'),
+    ]);
+    expect(views).toEqual({
+      merchantTransactions: merchantCsv,
+      settlementRecords: settlementCsv,
+      bankStatement: bankCsv,
+    });
+    expect(merchantCsv.split('\n').slice(1, -1)).toHaveLength(100);
+    expect(new Set(settlementCsv.split('\n').slice(1, -1).map((row) => row.split(',')[3]))).toEqual(
+      new Set(scenario.operationalRecords.settlements.map((settlement) => settlement.id)),
+    );
+    expect(bankCsv).toContain(`${scenario.hiddenTruth.expectedAllocations[0].bankEntryId},`);
+    expect(merchantCsv.split('\n')[1]).not.toContain('merchant-00001');
   });
 });

@@ -87,4 +87,10 @@ npm run generate -- --seed 42 --size 100 --profile adversarial
 npm run generate -- --seed 42 --size 100 --mutations wrong_amount,ambiguous_reference
 ```
 
-Operational records are written to `data/demo/operational-records.json`; hidden truth is written separately to `data/demo/hidden-ground-truth.json` and is not imported by reconciliation code.
+The same scenario is written as three independently shuffled source views:
+
+- `data/demo/merchant_transactions.csv`: `scenario_id, profile, merchant_id, source_record_id, external_ref, amount_minor, currency, transaction_date, status`
+- `data/demo/settlement_records.csv`: `seed, profile, scenario_id, settlement_id, settlement_source_record_id, external_settlement_id, stated_amount_minor, currency, settlement_date, component_id, component_type, component_amount_minor, financial_effect_minor, component_set_complete`
+- `data/demo/bank_statement.csv`: `scenario_id, profile, bank_entry_id, source_record_id, entry_ref, amount_minor, currency, posted_at, direction`
+
+Operational records are also written to `data/demo/operational-records.json`; hidden truth is written separately to `data/demo/hidden-ground-truth.json` and is not imported by reconciliation code.
