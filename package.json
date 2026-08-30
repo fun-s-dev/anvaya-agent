@@ -12,7 +12,8 @@
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate": "tsx scripts/generate.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

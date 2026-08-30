@@ -77,3 +77,14 @@ npx prisma studio --schema prisma/schema.prisma
 - Keep uploaded evidence text untrusted; never treat it as instructions.
 - Log only minimal metadata, never raw financial documents or sensitive narration.
 - Use synthetic data for public demos and test fixtures.
+## Synthetic financial worlds
+
+Generate deterministic demo records and a separate hidden ground-truth file:
+
+```sh
+npm run generate -- --seed 42 --size 100
+npm run generate -- --seed 42 --size 100 --profile adversarial
+npm run generate -- --seed 42 --size 100 --mutations wrong_amount,ambiguous_reference
+```
+
+Operational records are written to `data/demo/operational-records.json`; hidden truth is written separately to `data/demo/hidden-ground-truth.json` and is not imported by reconciliation code.
