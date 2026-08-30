@@ -1,0 +1,222 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Import {
+  id               String      @id @default(cuid())
+  provider         String
+  sourceType       String
+  filename         String
+  checksum         String
+  fileSizeBytes    Int?
+  status           String      @default("received")
+  createdAt        DateTime    @default(now())
+  importedAt       DateTime    @default(now())
+  sourceRecordCount Int        @default(0)
+  rawRecords       RawRecord[]
+  transactions     Transaction[]
+  settlements      Settlement[]
+  bankEntries      BankEntry[]
+
+  @@index([provider, sourceType, createdAt])
+}
+
+model RawRecord {
+  id              String   @id @default(cuid())
+  importId        String
+  provider        String
+  sourceType      String
+  sourceRecordId  String?
+  fingerprint     String?
+  rowJson         Json
+  createdAt       DateTime @default(now())
+  import          Import   @relation(fields: [importId], references: [id], onDelete: Cascade)
+  transaction     Transaction?
+  settlement      Settlement?
+  bankEntry       BankEntry?
+
+  @@unique([provider, sourceType, sourceRecordId], map: "raw_records_provider_source_type_source_record_id_unique")
+  @@index([importId])
+  @@index([provider, sourceType, sourceRecordId])
+}
+
+model Transaction {
+  id                    String                      @id @default(cuid())
+  importId              String
+  rawRecordId           String?                     @unique
+  provider              String
+  sourceType            String                      @default("merchant")
+  sourceRecordId        String?
+  fingerprint           String?
+  externalRef           String?
+  amountMinor           Int
+  currency              String                      @default("INR")
+  transactionDate       DateTime?
+  status                String?
+  metadata              Json?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  import                Import                      @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rawRecord             RawRecord?                  @relation(fields: [rawRecordId], references: [id])
+  settlementLinks       TransactionSettlementLink[]
+
+  @@unique([provider, sourceType, sourceRecordId], map: "transactions_provider_source_type_source_record_id_unique")
+  @@index([provider, sourceType, sourceRecordId])
+}
+
+model Settlement {
+  id                    String                      @id @default(cuid())
+  importId              String
+  rawRecordId           String?                     @unique
+  provider              String
+  sourceType            String                      @default("psp")
+  sourceRecordId        String?
+  fingerprint           String?
+  externalSettlementId  String?
+  statedAmountMinor     Int?
+  currency              String                      @default("INR")
+  settlementDate        DateTime?
+  status                String?
+  metadata              Json?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+  import                Import                      @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rawRecord             RawRecord?                  @relation(fields: [rawRecordId], references: [id])
+  components            SettlementComponent[]
+  settlementLinks       TransactionSettlementLink[]
+  allocations           SettlementBankAllocation[]
+
+  @@unique([provider, sourceType, sourceRecordId], map: "settlements_provider_source_type_source_record_id_unique")
+  @@index([provider, sourceType, sourceRecordId])
+}
+
+model SettlementComponent {
+  id                    String   @id @default(cuid())
+  settlementId          String
+  provider              String
+  sourceType            String   @default("psp")
+  sourceRecordId        String?
+  componentType         String?
+  componentKind         String?
+  amountMinor           Int
+  financialEffectMinor  Int
+  currency              String   @default("INR")
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  settlement            Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  @@index([settlementId])
+  @@index([provider, sourceType, sourceRecordId])
+}
+
+model BankEntry {
+  id                    String   @id @default(cuid())
+  importId              String
+  rawRecordId           String?  @unique
+  provider              String
+  sourceType            String   @default("bank")
+  sourceRecordId        String?
+  fingerprint           String?
+  bankAccountRef        String?
+  entryRef              String?
+  amountMinor           Int
+  currency              String   @default("INR")
+  postedAt              DateTime?
+  narration             String?
+  direction             String?
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  import                Import   @relation(fields: [importId], references: [id], onDelete: Cascade)
+  rawRecord             RawRecord? @relation(fields: [rawRecordId], references: [id])
+  allocations           SettlementBankAllocation[]
+
+  @@unique([provider, sourceType, sourceRecordId], map: "bank_entries_provider_source_type_source_record_id_unique")
+  @@index([provider, sourceType, sourceRecordId])
+}
+
+model TransactionSettlementLink {
+  id                    String    @id @default(cuid())
+  transactionId         String
+  settlementId          String
+  matchMethod           String?
+  confidence            Float?
+  isVerified            Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  transaction           Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  settlement            Settlement  @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  @@unique([transactionId, settlementId], map: "transaction_settlement_links_transaction_settlement_unique")
+  @@index([transactionId])
+  @@index([settlementId])
+}
+
+model SettlementBankAllocation {
+  id                    String    @id @default(cuid())
+  settlementId          String
+  bankEntryId           String
+  amountMinor           Int
+  currency              String    @default("INR")
+  allocationType        String?
+  matchMethod           String?
+  isVerified            Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+  settlement            Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  bankEntry             BankEntry @relation(fields: [bankEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([settlementId, bankEntryId], map: "settlement_bank_allocations_settlement_bank_unique")
+  @@index([settlementId])
+  @@index([bankEntryId])
+}
+
+model Case {
+  id                    String           @id @default(cuid())
+  caseType              String
+  state                 String           @default("OPEN")
+  reason                String?
+  priority              String           @default("MEDIUM")
+  sourceEntityType      String?
+  sourceEntityId        String?
+  evidence             Json?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  agentActions          AgentAction[]
+  auditEvents           AuditEvent[]
+
+  @@index([state, priority, createdAt])
+}
+
+model AgentAction {
+  id                    String   @id @default(cuid())
+  caseId                String
+  actionName            String
+  actionOrder           Int
+  llmCallCount          Int      @default(0)
+  status                String   @default("PENDING")
+  payload               Json?
+  result                Json?
+  createdAt             DateTime @default(now())
+  case                  Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, actionOrder])
+}
+
+model AuditEvent {
+  id                    String   @id @default(cuid())
+  caseId                String?
+  entityType            String?
+  entityId              String?
+  eventType             String
+  eventSummary          String?
+  actorType             String   @default("SYSTEM")
+  payload               Json?
+  createdAt             DateTime @default(now())
+  case                  Case?    @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  @@index([caseId, createdAt])
+  @@index([entityType, entityId])
+}

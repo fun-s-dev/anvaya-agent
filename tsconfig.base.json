@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@anvaya/contracts": ["packages/contracts/src/index.ts"],
+      "@anvaya/canonical": ["packages/canonical/src/index.ts"],
+      "@anvaya/reconciliation": ["packages/reconciliation/src/index.ts"],
+      "@anvaya/agent": ["packages/agent/src/index.ts"],
+      "@anvaya/adapters": ["packages/adapters/src/index.ts"],
+      "@anvaya/generator": ["packages/generator/src/index.ts"],
+      "@anvaya/evaluator": ["packages/evaluator/src/index.ts"],
+      "@anvaya/security": ["packages/security/src/index.ts"]
+    }
+  }
+}
