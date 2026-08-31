@@ -39,6 +39,65 @@ export const CanonicalFinancialEffectSchema = z.object({
   financialEffectMinor: MoneyMinorSchema,
 });
 
+export const ValidationIssueSchema = z.object({
+  check: z.string().min(1),
+  message: z.string().min(1),
+  severity: z.enum(['error', 'warning']).default('error'),
+});
+
+export const DeterministicValidationResultSchema = z.object({
+  status: z.enum(['VERIFIED', 'REJECTED', 'PENDING']),
+  canBecomeVerified: z.boolean().default(false),
+  evidenceIds: z.array(z.string()).default([]),
+  sourceImportIds: z.array(z.string()).default([]),
+  sourceRecordIds: z.array(z.string()).default([]),
+  allocationMinor: z.number().int().default(0),
+  unresolvedMinor: z.number().int().default(0),
+  conserved: z.boolean().default(true),
+  checks: z.array(ValidationIssueSchema).default([]),
+});
+
+export const ProofViewSchema = z.object({
+  caseId: z.string().min(1),
+  caseType: z.enum(['TRANSACTION_SETTLEMENT', 'SETTLEMENT_BANK']),
+  machineState: z.string().min(1),
+  machineReason: z.string().nullable().optional(),
+  evidenceFound: z.array(z.string()).default([]),
+  evidenceMissing: z.array(z.string()).default([]),
+  auditTrail: z.array(z.unknown()).default([]),
+  actionTrace: z.array(z.unknown()).default([]),
+  humanReview: z.object({
+    required: z.boolean().default(false),
+    reason: z.string().optional(),
+    comment: z.string().optional(),
+    reviewedBy: z.string().optional(),
+  }).default({ required: false }),
+});
+
+export const HumanResolutionRequestSchema = z.object({
+  reason: z.string().min(1).max(255),
+  comment: z.string().min(1).max(2000),
+  reviewedBy: z.string().min(1).max(128).optional(),
+  overrideState: z.enum(['PENDING', 'RESOLVED', 'ESCALATED']).optional(),
+  sourceEvidence: z.array(z.string()).optional().default([]),
+  candidate: z.record(z.unknown()).optional(),
+  validationChecks: z.array(ValidationIssueSchema).optional().default([]),
+});
+
+export const HumanResolutionResultSchema = z.object({
+  caseId: z.string().min(1),
+  originalMachineState: z.string().min(1),
+  originalMachineReason: z.string().nullable().optional(),
+  humanState: z.enum(['PENDING', 'RESOLVED', 'ESCALATED']),
+  reason: z.string().min(1),
+  comment: z.string().min(1),
+  reviewedBy: z.string().optional(),
+  didOverwriteMachineDecision: z.boolean().default(false),
+  sourceEvidence: z.array(z.string()).default([]),
+  candidate: z.record(z.unknown()).optional(),
+  validationChecks: z.array(ValidationIssueSchema).default([]),
+});
+
 export const ApiErrorSchema = z.object({
   error: z.string(),
   details: z.string().optional(),
@@ -50,4 +109,9 @@ export type CurrencyCode = z.infer<typeof CurrencyCodeSchema>;
 export type ImportRegistrationRequest = z.infer<typeof ImportRegistrationRequestSchema>;
 export type ImportResponse = z.infer<typeof ImportResponseSchema>;
 export type CanonicalFinancialEffect = z.infer<typeof CanonicalFinancialEffectSchema>;
+export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;
+export type DeterministicValidationResult = z.infer<typeof DeterministicValidationResultSchema>;
+export type ProofView = z.infer<typeof ProofViewSchema>;
+export type HumanResolutionRequest = z.infer<typeof HumanResolutionRequestSchema>;
+export type HumanResolutionResult = z.infer<typeof HumanResolutionResultSchema>;
 export type ApiError = z.infer<typeof ApiErrorSchema>;

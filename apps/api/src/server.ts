@@ -1,6 +1,7 @@
 import fastifyCors from '@fastify/cors';
 import Fastify from 'fastify';
 
+import { casesRoutes } from './routes/cases.js';
 import { importsRoutes } from './routes/imports.js';
 
 export async function buildServer() {
@@ -13,6 +14,7 @@ export async function buildServer() {
   });
 
   await app.register(importsRoutes);
+  await app.register(casesRoutes);
 
   app.get('/health', async () => ({
     ok: true,
