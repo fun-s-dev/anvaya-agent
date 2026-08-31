@@ -109,6 +109,9 @@ export type TimingPolicy = {
   bankWindowDays?: number;
 };
 
+export type TimingStatus = 'READY' | 'PENDING' | 'OVERDUE';
+export type AllocationConservationStatus = 'OK' | 'UNRESOLVED' | 'OVER_ALLOCATED' | 'BLOCKED';
+
 export type SettlementIntegrityResult = {
   settlementId: string;
   statedAmountMinor: number | null;
@@ -144,7 +147,7 @@ export type IntentionObservation = {
 };
 
 export const DEFAULT_TIMING_POLICY: TimingPolicy = {
-  asOf: new Date().toISOString(),
+  asOf: '2026-08-13T00:00:00.000Z',
   settlementGraceDays: 2,
   bankGraceDays: 2,
   bankWindowDays: 2,
@@ -358,13 +361,29 @@ export function resolveTimingStatus(
   asOf: string,
   postedAt: string | undefined,
   policy: TimingPolicy = DEFAULT_TIMING_POLICY,
-): 'TIMING_DELAY' | 'READY' {
-  if (!postedAt) return 'TIMING_DELAY';
+): TimingStatus {
+  if (!postedAt) {
+    return 'PENDING';
+  }
+
   const asOfTime = new Date(asOf).getTime();
   const postedTime = new Date(postedAt).getTime();
-  if (Number.isNaN(asOfTime) || Number.isNaN(postedTime)) return 'TIMING_DELAY';
+  if (Number.isNaN(asOfTime) || Number.isNaN(postedTime)) {
+    return 'PENDING';
+  }
+
   const windowMs = (policy.bankGraceDays ?? 2) * 24 * 60 * 60 * 1000;
-  if (postedTime > asOfTime + windowMs) return 'TIMING_DELAY';
+  const dueWindowStart = asOfTime - windowMs;
+  const dueWindowEnd = asOfTime + windowMs;
+
+  if (postedTime > dueWindowEnd) {
+    return 'PENDING';
+  }
+
+  if (postedTime < dueWindowStart) {
+    return 'OVERDUE';
+  }
+
   return 'READY';
 }
 
@@ -416,7 +435,8 @@ export function evaluateUnattributedBankEntries(
   const unattributed = bankEntries.filter((entry) => !attributed.has(entry.id));
   const reason = unattributed.length > 0 ? 'UNATTRIBUTED_BANK_ENTRY' : null;
   for (const entry of unattributed) {
-    if (resolveTimingStatus(asOf, entry.postedAt, DEFAULT_TIMING_POLICY) === 'TIMING_DELAY') {
+    const status = resolveTimingStatus(asOf, entry.postedAt, DEFAULT_TIMING_POLICY);
+    if (status === 'OVERDUE') {
       return { unattributed: [entry], reason: 'TIMING_DELAY' };
     }
   }
@@ -438,50 +458,93 @@ export function reconcileDeterministicFastPath(input: {
   amountDateMatches: ReferenceMatch[];
   aggregateMatches: ReferenceMatch[];
   timingDelay: string[];
+  timingStatus: Array<{ bankEntryId: string; status: TimingStatus; postedAt?: string; asOf: string }>;
+  pendingBankEntryIds: string[];
+  overdueBankEntryIds: string[];
   ambiguity: IntentionObservation[];
   blockedSettlementIds: string[];
+  allocatedAmountMinor: number;
+  unresolvedAmountMinor: number;
+  explainedVarianceMinor: number;
+  blockedAmountMinor: number;
+  conservationStatus: AllocationConservationStatus;
   reason: ReconciliationReasonCode | null;
 } {
   const asOf = input.asOf ?? DEFAULT_TIMING_POLICY.asOf;
   const integrity = runSettlementIntegrityCheck(input.settlements, input.settlementComponents);
   const blockedSettlementIds = integrity.filter((item) => item.blocked).map((item) => item.settlementId);
+  const blockedSettlementSet = new Set(blockedSettlementIds);
 
-  const exactReferenceMatches = findExactTransactionSettlementMatches(
-    input.merchantTransactions,
-    input.pspTransactions,
+  const activeSettlements = input.settlements.filter((settlement) => !blockedSettlementSet.has(settlement.id));
+  const activePspTransactions = input.pspTransactions.filter(
+    (pspTransaction) => !blockedSettlementSet.has(pspTransaction.settlementId ?? ''),
   );
-  const normalizedReferenceMatches = findNormalizedReferenceMatches(
-    input.merchantTransactions,
-    input.pspTransactions,
-  );
-  const amountDateMatches = findAmountDateWindowMatches(
-    input.merchantTransactions,
-    input.pspTransactions,
-  );
-  const aggregateMatches = findSupportedAggregateMatches(input.settlements, input.bankEntries);
 
+  const exactReferenceMatches = blockedSettlementIds.length === 0
+    ? findExactTransactionSettlementMatches(input.merchantTransactions, input.pspTransactions)
+    : findExactTransactionSettlementMatches(
+        input.merchantTransactions,
+        activePspTransactions,
+      );
+  const normalizedReferenceMatches = blockedSettlementIds.length === 0
+    ? findNormalizedReferenceMatches(input.merchantTransactions, input.pspTransactions)
+    : findNormalizedReferenceMatches(input.merchantTransactions, activePspTransactions);
+  const amountDateMatches = blockedSettlementIds.length === 0
+    ? findAmountDateWindowMatches(input.merchantTransactions, input.pspTransactions)
+    : findAmountDateWindowMatches(input.merchantTransactions, activePspTransactions);
+  const aggregateMatches = findSupportedAggregateMatches(activeSettlements, input.bankEntries);
+
+  const timingStatus = input.bankEntries.map((entry) => ({
+    bankEntryId: entry.id,
+    status: resolveTimingStatus(asOf, entry.postedAt, DEFAULT_TIMING_POLICY),
+    postedAt: entry.postedAt,
+    asOf,
+  }));
+  const pendingBankEntryIds = timingStatus
+    .filter((entry) => entry.status === 'PENDING')
+    .map((entry) => entry.bankEntryId);
+  const overdueBankEntryIds = timingStatus
+    .filter((entry) => entry.status === 'OVERDUE')
+    .map((entry) => entry.bankEntryId);
   const timingDelay = input.bankEntries
-    .filter((entry) => resolveTimingStatus(asOf, entry.postedAt, DEFAULT_TIMING_POLICY) === 'TIMING_DELAY')
+    .filter((entry) => resolveTimingStatus(asOf, entry.postedAt, DEFAULT_TIMING_POLICY) === 'OVERDUE')
     .map((entry) => entry.id);
+
+  const blockedAmountMinor = integrity
+    .filter((item) => item.blocked)
+    .reduce((sum, item) => sum + (item.statedAmountMinor ?? item.derivedAmountMinor), 0);
+  const explainedVarianceMinor = integrity
+    .filter((item) => item.blocked)
+    .reduce((sum, item) => sum + Math.abs(item.varianceMinor), 0);
+  const allocatedAmountMinor = aggregateMatches.reduce((sum, match) => sum + match.amountMinor, 0);
+  const totalBankAmountMinor = input.bankEntries.reduce((sum, entry) => sum + entry.amountMinor, 0);
+  const unresolvedAmountMinor = Math.max(0, totalBankAmountMinor - allocatedAmountMinor) + blockedAmountMinor;
 
   const unresolvedReason: ReconciliationReasonCode | null =
     integrity.some((item) => item.status === 'INTEGRITY_FAILURE')
       ? 'INTEGRITY_FAILURE'
-      : timingDelay.length > 0
+      : overdueBankEntryIds.length > 0
         ? 'TIMING_DELAY'
-        : null;
+        : pendingBankEntryIds.length > 0
+          ? 'TIMING_DELAY'
+          : null;
 
   const ambiguity: IntentionObservation[] = [];
   if (unresolvedReason !== null) {
     ambiguity.push({
       caseId: 'case-deterministic',
       caseType: 'SETTLEMENT_BANK',
-      state: 'INVESTIGATING',
+      state: blockedSettlementIds.length > 0 ? 'INVESTIGATING' : 'PENDING',
       reason: unresolvedReason,
       actionCount: 1,
       llmCallCount: 0,
       availableActions: ['RUN_INTEGRITY_CHECK', 'MATCH_EXACT', 'CHECK_TIMING', 'ESCALATE'],
-      evidence: { settlementIds: blockedSettlementIds, bankEntryIds: timingDelay },
+      evidence: {
+        settlementIds: blockedSettlementIds,
+        bankEntryIds: timingDelay,
+        pendingBankEntryIds,
+        overdueBankEntryIds,
+      },
     });
   }
 
@@ -499,6 +562,15 @@ export function reconcileDeterministicFastPath(input: {
     });
   }
 
+  const conservationStatus: AllocationConservationStatus =
+    blockedSettlementIds.length > 0
+      ? 'BLOCKED'
+      : allocatedAmountMinor > totalBankAmountMinor
+        ? 'OVER_ALLOCATED'
+        : unresolvedAmountMinor > 0
+          ? 'UNRESOLVED'
+          : 'OK';
+
   return {
     integrity,
     exactReferenceMatches,
@@ -506,8 +578,16 @@ export function reconcileDeterministicFastPath(input: {
     amountDateMatches,
     aggregateMatches,
     timingDelay,
+    timingStatus,
+    pendingBankEntryIds,
+    overdueBankEntryIds,
     ambiguity,
     blockedSettlementIds,
+    allocatedAmountMinor,
+    unresolvedAmountMinor,
+    explainedVarianceMinor,
+    blockedAmountMinor,
+    conservationStatus,
     reason: unresolvedReason ?? (unattributed.reason ?? null),
   };
 }
