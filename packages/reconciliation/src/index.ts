@@ -518,16 +518,20 @@ export function reconcileDeterministicFastPath(input: {
     .reduce((sum, item) => sum + Math.abs(item.varianceMinor), 0);
   const allocatedAmountMinor = aggregateMatches.reduce((sum, match) => sum + match.amountMinor, 0);
   const totalBankAmountMinor = input.bankEntries.reduce((sum, entry) => sum + entry.amountMinor, 0);
+  const totalSettlementAmountMinor = input.settlements.reduce((sum, settlement) => sum + (settlement.statedAmountMinor ?? 0), 0);
   const unresolvedAmountMinor = Math.max(0, totalBankAmountMinor - allocatedAmountMinor) + blockedAmountMinor;
 
+  const bankExceedsSettlement = totalBankAmountMinor > totalSettlementAmountMinor;
   const unresolvedReason: ReconciliationReasonCode | null =
     integrity.some((item) => item.status === 'INTEGRITY_FAILURE')
       ? 'INTEGRITY_FAILURE'
-      : overdueBankEntryIds.length > 0
-        ? 'TIMING_DELAY'
-        : pendingBankEntryIds.length > 0
+      : bankExceedsSettlement
+        ? 'UNATTRIBUTED_BANK_ENTRY'
+        : overdueBankEntryIds.length > 0
           ? 'TIMING_DELAY'
-          : null;
+          : pendingBankEntryIds.length > 0
+            ? 'TIMING_DELAY'
+            : null;
 
   const ambiguity: IntentionObservation[] = [];
   if (unresolvedReason !== null) {

@@ -1,14 +1,28 @@
-node_modules
-.next
-dist
-coverage
-data/evaluation/
-data/demo/hidden-ground-truth.json
+node_modules/
+.next/
+dist/
+coverage/
 *.tsbuildinfo
+
+# Local environment and credentials
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+apps/api/.env
+frontend/.env.local
+
+# Local logs and temporary files
 *.log
+*.tmp
+*.temp
+*.bak
+check.js
 .DS_Store
+
+# Local databases
 prisma/dev.db
 prisma/dev.db-journal
+
+# Evaluation-only data and private project planning
+data/evaluation/
+docs/anvaya-project-blueprint.md

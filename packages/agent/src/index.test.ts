@@ -12,6 +12,7 @@ import {
   type AgentCaseContext,
   type LlmProvider,
 } from './index.js';
+import { createGeminiProvider } from './gemini-provider.js';
 
 describe('agent controller', () => {
   const baseContext: AgentCaseContext = {
@@ -153,5 +154,27 @@ describe('agent controller', () => {
     expect(loop.steps).toEqual(['OBSERVE', 'CHOOSE_ACTION', 'EXECUTE_TOOL', 'OBSERVE_RESULT']);
     expect(loop.nextAction?.next_action).toBe('MATCH_EXACT');
     expect(loop.finalState).toBe('INVESTIGATING');
+  });
+
+  it('parses and schema-validates a mocked Gemini response without network access', async () => {
+    let requestedModel = '';
+    const provider = createGeminiProvider({
+      apiKey: 'test-key',
+      modelName: 'gemini-test',
+      generateContentImpl: async ({ modelName }) => {
+        requestedModel = modelName;
+        return JSON.stringify({
+          next_action: 'MATCH_EXACT',
+          transaction_ids: ['tx1'],
+          psp_transaction_ids: ['psp1'],
+          evidence_ids: ['tx1', 'psp1'],
+        });
+      },
+    });
+
+    const result = await requestAgentAction(provider, baseContext);
+    expect(result?.nextAction.next_action).toBe('MATCH_EXACT');
+    expect(result?.metadata).toMatchObject({ model_name: 'gemini-test', provider: 'google-gemini' });
+    expect(requestedModel).toBe('gemini-test');
   });
 });

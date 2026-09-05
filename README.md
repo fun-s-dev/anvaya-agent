@@ -1,105 +1,206 @@
-# Anvaya Agent
+# Anvaya
 
-Anvaya is a provider-agnostic reconciliation and discrepancy-investigation controller for payment, settlement and bank operations.
+Anvaya is a provider-agnostic payment reconciliation and discrepancy-investigation controller.
 
-## Repository layout
+Its core flow is:
 
-- `apps/web` — Next.js + React + TypeScript frontend
-- `apps/api` — Fastify + TypeScript API
-- `packages/contracts` — shared API/domain Zod contracts
-- `packages/canonical` — provider-neutral canonical data model and validation helpers
-- `packages/reconciliation` — deterministic reconciliation primitives and invariants
-- `packages/agent` — bounded investigation controller (future)
-- `packages/adapters` — provider adapters, starting with Razorpay
-- `packages/generator` — synthetic scenario generator (future)
-- `packages/evaluator` — batch evaluation and metrics (future)
-- `packages/security` — security and privacy helpers (future)
-- `prisma` — PostgreSQL schema and migration
+`Merchant transactions -> PSP settlement -> Bank cash -> deterministic reconciliation -> bounded investigation for ambiguity -> deterministic validation`
 
-## Windows setup
+**AI investigates. Deterministic controls decide.**
 
-1. Install Node.js 20+ and npm.
-2. Open PowerShell in the repository root.
-3. Copy `.env.example` to `.env` and replace the credentials.
-4. Start PostgreSQL locally and create the `anvaya` database.
-5. Install dependencies:
+## The problem
+
+The same financial event appears in three operational records: the merchant transaction, the PSP settlement, and the bank statement. Anvaya connects those records, preserves their evidence, and identifies:
+
+- exact matches
+- amount mismatches
+- missing or unattributed bank evidence
+- unresolved discrepancies
+- cases requiring investigation
+
+## Current features
+
+- Strict CSV schema validation
+- Merchant transaction ingestion
+- PSP settlement ingestion
+- Bank statement ingestion
+- Razorpay adapter
+- Canonical financial model
+- Deterministic reconciliation
+- Transaction-to-settlement matching
+- Settlement-to-bank matching
+- Amount mismatch detection
+- Evidence-backed exception handling
+- `VERIFIED`, `PENDING`, and `ESCALATED` states
+- Money Explanation
+- Bounded agent investigation
+- Optional Gemini integration
+- Grounded Ask Anvaya
+- Three synthetic demo scenarios
+- Current-run privacy model
+- No user-facing Run History
+
+## Demo scenarios
+
+### Clean Reconciliation
+
+Evidence aligns across the three sources. Demonstrates deterministic verification.
+
+### Amount Mismatch
+
+A transaction and PSP settlement relationship exists, but the amounts differ.
+
+### Mixed Investigation
+
+A synthetic run containing multiple discrepancy types requiring investigation.
+
+## AI and Gemini
+
+Gemini is bounded to the investigation boundary. It may:
+
+- interpret ambiguous investigation context
+- structure natural-language intent
+- assist investigation
+
+Gemini may not:
+
+- directly modify financial state
+- declare financial truth
+- bypass validation
+- invent evidence
+
+Deterministic reconciliation and validation remain authoritative. If Gemini is not configured, ambiguous cases use the deterministic fallback provider.
+
+Example backend configuration:
+
+```dotenv
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=your_model_here
+```
+
+Never commit a real key. The key is backend-only and is never sent to the frontend.
+
+## Ask Anvaya
+
+Ask Anvaya answers questions grounded in the **current reconciliation run**. Examples include:
+
+- How many cases were escalated?
+- Which case has the highest unresolved amount?
+- Why was this case escalated?
+- What evidence is missing?
+- Which settlements have no bank credit?
+
+Unsupported questions are rejected rather than answered from invented context.
+
+## Privacy
+
+The current application has no authentication. Therefore:
+
+- there is no user-facing Run History
+- there is no global historical run listing
+- no multi-tenant isolation is claimed
+- current-run data is the scope of the interface
+
+The checked-in demo inputs are synthetic.
+
+## Local setup
+
+### Prerequisites
+
+- Node.js 20+
+- npm
+- PostgreSQL
+
+### Install and configure
 
 ```powershell
 npm install
+Copy-Item .env.example .env
 ```
 
-6. Generate Prisma client:
+Set `DATABASE_URL` in `.env` to a PostgreSQL database you can use locally. `PORT` defaults to `4000`, and `NEXT_PUBLIC_API_URL` should remain `http://localhost:4000` for the local frontend. `GEMINI_API_KEY` and `GEMINI_MODEL` are optional.
+
+Generate the Prisma client and apply migrations:
 
 ```powershell
-npx prisma generate --schema prisma/schema.prisma
+npx prisma generate --schema prisma\schema.prisma
+npx prisma migrate deploy --schema prisma\schema.prisma
 ```
 
-7. Apply the migration:
+For a local demo without PostgreSQL, set `ANVAYA_DEMO_STORE=memory`.
 
-```powershell
-npx prisma migrate deploy --schema prisma/schema.prisma
-```
-
-8. Run the API and web apps:
+### Start the API
 
 ```powershell
 npm run dev:api
-npm run dev:web
 ```
 
-## PostgreSQL setup
+API URL: `http://localhost:4000`
 
-Create a local PostgreSQL database and set `DATABASE_URL` to a PostgreSQL connection string like:
+### Start the frontend
 
-```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/anvaya?schema=public"
-```
-
-For local development, ensure the database user has permission to create tables and run Prisma migrations. Do not commit `.env` files or local credentials.
-
-## Prisma migration workflow
-
-When the schema changes:
+In a second terminal:
 
 ```powershell
-npx prisma migrate dev --name <migration-name> --schema prisma/schema.prisma
+npm run dev:frontend
 ```
 
-To inspect the current state:
+Frontend URL: `http://localhost:3001`
+
+## Demo flow
+
+1. Start the API.
+2. Start the frontend.
+3. Open `http://localhost:3001`.
+4. Click **Use Demo Dataset**.
+5. Choose **Clean Reconciliation**.
+6. Run reconciliation.
+7. Inspect **Control Room**.
+8. Open **Money Explanation**.
+9. Try **Amount Mismatch**.
+10. Try **Mixed Investigation**.
+11. Use Ask Anvaya for a grounded question.
+12. Inspect the evidence and proof for exceptions.
+
+## Architecture
+
+The authority boundary is:
+
+`Source adapters -> canonical model -> deterministic integrity/reconciliation -> clean fast path -> bounded AI investigation where needed -> deterministic validation -> final state`
+
+The main states are:
+
+- **VERIFIED** - deterministic validation confirmed the relationship.
+- **PENDING** - the case remains within a policy or timing window.
+- **ESCALATED** - evidence was insufficient for safe automatic verification and requires human review.
+
+AI can investigate ambiguity, but only deterministic controls can validate the final financial state.
+
+## Project structure
+
+```text
+apps/api/       Fastify API and reconciliation routes
+frontend/       Next.js control-room interface
+packages/       Canonical model, contracts, adapters, agent, reconciliation, and tests
+prisma/         Prisma schema and migrations
+data/demo/      Synthetic merchant, settlement, and bank CSV inputs
+scripts/        Repository utilities and demo generation
+```
+
+The public demo inputs are:
+
+- `data/demo/merchant_transactions.csv`
+- `data/demo/settlement_records.csv`
+- `data/demo/bank_statement.csv`
+
+## Testing
+
+Run the repository checks that are configured:
 
 ```powershell
-npx prisma studio --schema prisma/schema.prisma
+npm test
+npm run typecheck --workspaces --if-present
+npm run lint --workspaces --if-present
+npm run build --workspaces --if-present
+git diff --check
 ```
-
-## Secret handling and safe defaults
-
-- Never commit `.env`, API keys, database passwords or generated private data.
-- Keep uploaded evidence text untrusted; never treat it as instructions.
-- Log only minimal metadata, never raw financial documents or sensitive narration.
-- Use synthetic data for public demos and test fixtures.
-## Synthetic financial worlds
-
-Generate deterministic demo records and separate evaluation-only ground truth:
-
-```sh
-npm run generate -- --seed 42 --size 100
-npm run generate -- --seed 42 --size 100 --profile adversarial
-npm run generate -- --seed 42 --size 100 --mutations wrong_amount,ambiguous_reference
-```
-
-The same scenario is written as three independently shuffled source views:
-
-- `data/demo/merchant_transactions.csv`: `scenario_id, profile, merchant_id, source_record_id, external_ref, amount_minor, currency, transaction_date, status`
-- `data/demo/settlement_records.csv`: `seed, profile, scenario_id, settlement_id, settlement_source_record_id, external_settlement_id, stated_amount_minor, currency, settlement_date, psp_transaction_id, transaction_ref, component_id, component_type, component_amount_minor, financial_effect_minor, component_set_complete`
-- `data/demo/bank_statement.csv`: `scenario_id, profile, bank_entry_id, source_record_id, entry_ref, amount_minor, currency, posted_at, direction, narration`
-
-Hidden truth is written to ignored `data/evaluation/hidden-ground-truth.json`; it is never a public demo input and is not imported by reconciliation code.
-
-Windows PowerShell example:
-
-```powershell
-npm run generate -- --seed 42 --size 100 --profile adversarial
-Get-ChildItem data\demo\*.csv
-```
-
-Example output: 100 merchant rows, 90 settlement components after the adversarial missing-settlement mutation, and 10 bank rows.

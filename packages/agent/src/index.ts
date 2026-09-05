@@ -116,6 +116,8 @@ export type AgentActionResult = {
 };
 
 export type LlmProvider = {
+  readonly modelName?: string;
+  readonly modelProvider?: string;
   generateStructuredAction: <T>(input: {
     caseId: string;
     caseType: AgentCaseType;
@@ -348,8 +350,8 @@ export async function requestAgentAction(
       caseType: context.caseType,
       evidence: evidenceBundle,
       schema: agentActionSchema,
-      modelName: 'mock-llm',
-      modelProvider: 'mock-provider',
+      modelName: provider.modelName ?? 'mock-llm',
+      modelProvider: provider.modelProvider ?? 'mock-provider',
       promptVersion: 'part4-v1',
       outputSchemaVersion: '1.0',
     });
@@ -357,8 +359,8 @@ export async function requestAgentAction(
     const decision = createActionDecision(context, result);
     const metadata: LlmModelMetadata = {
       prompt_version: 'part4-v1',
-      model_name: 'mock-llm',
-      provider: 'mock-provider',
+      model_name: provider.modelName ?? 'mock-llm',
+      provider: provider.modelProvider ?? 'mock-provider',
       call_id: `${context.caseId}:${Date.now()}`,
       case_id: context.caseId,
       input_evidence_ids: Object.keys(context.evidence),
@@ -390,8 +392,8 @@ export async function requestAgentAction(
       validationResult: 'invalid',
       metadata: {
         prompt_version: 'part4-v1',
-        model_name: 'mock-llm',
-        provider: 'mock-provider',
+        model_name: provider.modelName ?? 'mock-llm',
+        provider: provider.modelProvider ?? 'mock-provider',
         call_id: `${context.caseId}:${Date.now()}`,
         case_id: context.caseId,
         input_evidence_ids: Object.keys(context.evidence),
@@ -510,3 +512,4 @@ export function reserveEscalationActionByContext(context: AgentCaseContext): boo
 }
 
 export { agentActionCodes };
+export { createGeminiProvider, type GeminiProviderOptions } from './gemini-provider.js';

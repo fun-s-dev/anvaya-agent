@@ -23,6 +23,7 @@ model Import {
   settlements      Settlement[]
   bankEntries      BankEntry[]
 
+  @@unique([provider, sourceType, checksum], map: "imports_provider_source_type_checksum_unique")
   @@index([provider, sourceType, createdAt])
 }
 
@@ -184,10 +185,29 @@ model Case {
   evidence             Json?
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
+  runId                 String?
+  run                   ReconciliationRun? @relation(fields: [runId], references: [id], onDelete: Cascade)
   agentActions          AgentAction[]
   auditEvents           AuditEvent[]
 
   @@index([state, priority, createdAt])
+  @@index([runId])
+}
+
+model ReconciliationRun {
+  id          String   @id @default(cuid())
+  runNumber   Int      @default(autoincrement())
+  status      String   @default("pending")
+  provider    String   @default("razorpay")
+  importIds   Json
+  metrics     Json?
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+  createdAt   DateTime @default(now())
+  cases       Case[]
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 model AgentAction {

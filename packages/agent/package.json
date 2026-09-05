@@ -13,6 +13,7 @@
   "dependencies": {
     "@anvaya/canonical": "*",
     "@anvaya/reconciliation": "*",
+    "@google/generative-ai": "^0.24.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {

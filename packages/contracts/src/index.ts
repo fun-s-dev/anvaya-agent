@@ -30,6 +30,32 @@ export const ImportResponseSchema = z.object({
   sourceRecordCount: z.number().int().nonnegative(),
 });
 
+export const RunMetricsSchema = z.object({
+  batchRecordCount: z.number().int().nonnegative(),
+  matchRateTransactionSettlement: z.number().min(0).max(1),
+  matchRateSettlementBank: z.number().min(0).max(1),
+  verifiedValueMinor: z.number().int().nonnegative(),
+  pendingValueMinor: z.number().int().nonnegative(),
+  unresolvedValueMinor: z.number().int().nonnegative(),
+  humanReviewRate: z.number().min(0).max(1),
+  throughputPerHour: z.number().int().nonnegative(),
+  llmCallsUsed: z.number().int().nonnegative(),
+  llmCallBudget: z.number().int().nonnegative(),
+  falseResolutionRate: z.number().min(0).max(1),
+  explainedVarianceMinor: z.number().int().nonnegative(),
+  unexplainedVarianceMinor: z.number().int().nonnegative(),
+  verifiedCases: z.number().int().nonnegative(),
+  pendingCases: z.number().int().nonnegative(),
+  escalatedCases: z.number().int().nonnegative(),
+});
+
+export const ReconciliationRunSchema = z.object({
+  runId: z.string().min(1),
+  status: z.enum(['pending', 'running', 'complete', 'failed']),
+  asOf: z.string().datetime(),
+  metrics: RunMetricsSchema,
+});
+
 export const CanonicalFinancialEffectSchema = z.object({
   provider: ProviderNameSchema,
   sourceType: SourceTypeSchema,
@@ -108,6 +134,8 @@ export type SourceType = z.infer<typeof SourceTypeSchema>;
 export type CurrencyCode = z.infer<typeof CurrencyCodeSchema>;
 export type ImportRegistrationRequest = z.infer<typeof ImportRegistrationRequestSchema>;
 export type ImportResponse = z.infer<typeof ImportResponseSchema>;
+export type RunMetrics = z.infer<typeof RunMetricsSchema>;
+export type ReconciliationRun = z.infer<typeof ReconciliationRunSchema>;
 export type CanonicalFinancialEffect = z.infer<typeof CanonicalFinancialEffectSchema>;
 export type ValidationIssue = z.infer<typeof ValidationIssueSchema>;
 export type DeterministicValidationResult = z.infer<typeof DeterministicValidationResultSchema>;
