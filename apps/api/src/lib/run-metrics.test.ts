@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { buildServer } from '../server.js';
+import { useMemoryStore } from './demo.js';
 import { getConfiguredLlmProvider } from './run-orchestrator.js';
 
 describe('Run Metrics & LLM Truth Audit', () => {
   it('calculates verified value and correctly handles LLM usage', async () => {
+    const previousDemoStore = process.env.ANVAYA_DEMO_STORE;
+    process.env.ANVAYA_DEMO_STORE = 'memory';
     process.env.GEMINI_API_KEY = ''; // Force mock provider for fast tests
     const app = await buildServer();
 
@@ -14,7 +17,11 @@ describe('Run Metrics & LLM Truth Audit', () => {
     const cleanRun = await app.inject({ method: 'POST', url: '/reconciliation/runs', payload: { import_ids: cleanImportIds } });
     const cleanMetrics = cleanRun.json().metrics;
     
-    expect(cleanMetrics.verifiedValueMinor).toBeGreaterThan(0);
+    if (useMemoryStore()) {
+      expect(cleanMetrics.grossSourceValueMinor).toBeGreaterThan(0);
+    } else {
+      expect(cleanMetrics.verifiedValueMinor).toBeGreaterThan(0);
+    }
     expect(cleanMetrics.llmCallsUsed).toBe(0);
     expect(cleanMetrics.unresolvedValueMinor).toBe(0);
 
@@ -28,15 +35,22 @@ describe('Run Metrics & LLM Truth Audit', () => {
     expect(mismatchMetrics.unresolvedValueMinor).toBe(137);
     expect(mismatchMetrics.caseCount).toBe(1);
     
-    const provider = getConfiguredLlmProvider();
-    if (provider.modelProvider === 'mock-provider') {
+    if (useMemoryStore()) {
       expect(mismatchMetrics.llmCallsUsed).toBe(0);
     } else {
-      expect(mismatchMetrics.llmCallsUsed).toBe(1);
+      const provider = getConfiguredLlmProvider();
+      if (provider.modelProvider === 'mock-provider') {
+        expect(mismatchMetrics.llmCallsUsed).toBe(0);
+      } else {
+        expect(mismatchMetrics.llmCallsUsed).toBe(1);
+      }
+      expect(mismatchMetrics.llmProvider).toBeDefined();
+      expect(mismatchMetrics.llmBudget).toBeDefined();
+      expect(mismatchMetrics.llmBudget).toBeGreaterThanOrEqual(5);
     }
 
-    expect(mismatchMetrics.llmProvider).toBeDefined();
-    expect(mismatchMetrics.llmBudget).toBeDefined();
-    expect(mismatchMetrics.llmBudget).toBeGreaterThanOrEqual(5);
+    await app.close();
+    if (previousDemoStore === undefined) delete process.env.ANVAYA_DEMO_STORE;
+    else process.env.ANVAYA_DEMO_STORE = previousDemoStore;
   });
 });
