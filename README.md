@@ -22,6 +22,8 @@ These records can arrive at different times, use different references, contain a
 
 Anvaya is a controller between raw financial evidence and human review. It preserves source lineage, performs deterministic matching and validation, and sends only genuinely ambiguous cases to bounded investigation.
 
+![Anvaya Control Room](docs/images/anvaya-control-room.png)
+
 ## The problem
 
 Reconciliation is more than row matching. Financial teams need evidence, not guesses. Unexplained variance requires investigation, while blindly forcing matches creates financial risk. AI-generated conclusions also cannot be treated as financial truth.
@@ -172,6 +174,8 @@ Exceptions retain:
 ### Ask Anvaya
 
 Ask Anvaya supports grounded natural-language questions for the current run. Deterministic query handling runs first, and Gemini may help interpret ambiguous language. Answers come from current run data. Unsupported questions are rejected rather than hallucinated.
+
+![Ask Anvaya](docs/images/ask-anvaya.png)
 
 ## Demo scenarios
 
